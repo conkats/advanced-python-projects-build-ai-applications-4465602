@@ -1,7 +1,8 @@
-import requests
-import json
+import requests#for http requests
+import json #for handling json data
 
-BACKEND_URL="https://psychic-adventure-p4w6pqpgxw9c6gp6-8000.app.github.dev"
+#BACKEND_URL="https://psychic-adventure-p4w6pqpgxw9c6gp6-8000.app.github.dev"
+BACKEND_URL="127.0.0.1:8000"
 
 def chat(user_input, data, session_id=None):
     """
@@ -24,6 +25,7 @@ def chat(user_input, data, session_id=None):
     print("session_id", session_id)
 
     # Prepare payload for the API request
+    #if session_id is not provide then create
     if session_id is None:
         payload = json.dumps({"user_input": user_input, "data_source": data})
     else:
@@ -63,6 +65,7 @@ def upload_file(file_path):
     print("path", file_path)
 
     # Extract the filename from the file path
+    # splitting it with \ and getting the last part
     filename = file_path.split("\\")[-1]
 
     # API endpoint for file upload
@@ -92,7 +95,9 @@ def upload_file(file_path):
         # Return the file path returned by the API
         return response.json()["file_path"]
 
-
+# streamlit turns python scripts into interactive web apps
+# Python library that makes it easy to create and share
+# custom web apps for machine learning and data science.
 import streamlit as st
 import time
 import os
@@ -106,14 +111,14 @@ if "messages" not in st.session_state:
 if "sessionid" not in st.session_state:
     st.session_state.sessionid = None
 
-# Allow user to upload a file (PDF or DOCX)
+# Allow user to upload a single file (PDF or DOCX)
 data_file = st.file_uploader(
     label="Input file", accept_multiple_files=False, type=["pdf", "docx"]
 )
-st.divider()
+st.divider()#add a horizontal line divider.
 
 # Process the uploaded file if available
-if data_file is not None:
+if data_file is not None:#check if the uploaded file is not None
     # Save the file temporarily
     file_path = os.path.join(os.getcwd(),"temp", data_file.name)
     with open(file_path, "wb") as f:
@@ -122,12 +127,11 @@ if data_file is not None:
     # Upload the file to a specified API endpoint
     s3_upload_url = upload_file(file_path=file_path)
     
-    s3_upload_url=s3_upload_url.split("/")[-1
-                                           ]
+    s3_upload_url=s3_upload_url.split("/")[-1]#the last file splitted by /
 
     # Display chat messages from history on app rerun
     for message in st.session_state.messages:
-        with st.chat_message(message["role"]):
+        with st.chat_message(message["role"]):#whether it is bot or user
             st.markdown(message["content"])
 
     # Accept user input
