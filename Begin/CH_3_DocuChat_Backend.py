@@ -27,7 +27,7 @@ from langchain.chains import ConversationalRetrievalChain
 from langchain_openai import ChatOpenAI
 import gc
 
-import urllib.parse
+import urllib.parse #parsing URS
 import awswrangler as wr  # Import AWS Wrangler for working with AWS services
 
 import boto3  # Import the boto3 library for interacting with AWS services
@@ -52,6 +52,9 @@ if os.name == "nt":  # Windows
 # S3_PATH = os.environ.get("S3_PATH")  # AWS S3 pathi
 
 os.environ['OPENAI_API_KEY']="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"
+
+#refer to S3 bucket AWS
+#https://docs.aws.amazon.com/quickstarts/latest/s3backup/step-1-create-bucket.html#:~:text=From%20the%20Amazon%20S3%20console,see%20Bucket%20Restrictions%20and%20Limitations.
 S3_KEY=""
 S3_SECRET=""
 S3_BUCKET=""
@@ -60,6 +63,8 @@ S3_PATH=""
 
 
 try:
+    #ref to https://cloud.mongodb.com/v2#/org/669bf4ddc311eb7ed78b4ba7/settings/general 
+    # https://www.mongodb.com/docs/manual/tutorial/install-mongodb-on-ubuntu/#std-label-install-mdb-community-ubuntu
     MONGO_URL="mongodb+srv://admin:admin@cluster0.jyupp.mongodb.net/?retryWrites=true&w=majority&ssl=true"
 
     # Connect to the MongoDB using the provided MONGO_URL
@@ -95,9 +100,9 @@ class ChatMessageSent(BaseModel):
 def get_response(
     file_name: str,
     session_id: str,
-    query: str,
-    model: str = "gpt-3.5-turbo-16k",
-    temperature: float = 0,
+    query: str,#user querry
+    model: str = "gpt-3.5-turbo-16k",#model
+    temperature: float = 0,#to control the response randomness
 ):
     print("file name is ", file_name)
     file_name=file_name.split("/")[-1]
@@ -126,7 +131,7 @@ def get_response(
 
 
     """
-    embeddings = OpenAIEmbeddings()  # load embeddings
+    embeddings = OpenAIEmbeddings()  # load embeddings-convert from text to numerical
     # download file from s3
     wr.s3.download(path=f"s3://docchat/documents/{file_name}",local_file=file_name,boto3_session=aws_s3)
 
@@ -160,7 +165,7 @@ def get_response(
         llm,
         retriever=vectorstore.as_retriever(),
     )
-    # use the function to determine tokens used
+    # use the function to determine tokens used from call back
     with get_openai_callback() as cb:
         answer = qa_chain(
             {
@@ -175,13 +180,13 @@ def get_response(
         print(f"Completion Tokens: {cb.completion_tokens}")
         print(f"Total Cost (USD): ${cb.total_cost}")
         answer["total_tokens_used"] = cb.total_tokens
-    gc.collect()  # collect garbage from memory
+    gc.collect()  # collect garbage from memory and free space
     return answer
 import uuid
 from typing import List
 
 
-def load_memory_to_pass(session_id: str):
+def load_memory_to_pass(session_id: str):#querry the mongodb find the document with the session id
     """
     Load conversation history for a given session ID.
 
@@ -197,7 +202,7 @@ def load_memory_to_pass(session_id: str):
     )  # find the document with the session id
     history = []  # create empty array (in case we do not have any history)
     if data:  # check if data is not None
-        data = data["conversation"]  # get the conversation field
+        data = data["conversation"]  # get the conversation field - list
 
         for x in range(0, len(data), 2):  # iterate over the field
             history.extend(
@@ -207,7 +212,7 @@ def load_memory_to_pass(session_id: str):
     return history  # return history
 
 
-def get_session() -> str:
+def get_session() -> str:#generates a new session id
     """
     Generate a new session ID.
 
@@ -227,7 +232,7 @@ def add_session_history(session_id: str, new_values: List):
 
     """
     document = conversationcol.find_one(
-        {"session_id": session_id}
+        {"session_id": session_id}#retrieve mongodb document
     )  # find the document with the session id
     if document:  # check if data is not None
         # Extract the conversation list
@@ -241,7 +246,7 @@ def add_session_history(session_id: str, new_values: List):
             {"session_id": session_id}, {"$set": {"conversation": conversation}}
         )
     else:
-        conversationcol.insert_one(
+        conversationcol.insert_one(#adds to mongodb
             {
                 "session_id": session_id,
                 "conversation": new_values,
@@ -268,7 +273,7 @@ aws_s3 = boto3.Session(
     region_name="us-east-2",  # Set the AWS region
 )
 
-
+#deine a fast api end point from chat
 @app.post("/chat")
 async def create_chat_message(
     chats: ChatMessageSent,
@@ -321,7 +326,7 @@ async def create_chat_message(
                 }
             )
 
-        else:
+        else:#using an existing session_id, user_input and ta source
             payload = ChatMessageSent(
                 session_id=str(chats.session_id),
                 user_input=chats.user_input,
@@ -346,7 +351,7 @@ async def create_chat_message(
                     "session_id": str(chats.session_id),
                 }
             )
-    except Exception:
+    except Exception:#expection handling for error
         print(traceback.format_exc())
 
         exc_type, exc_obj, exc_tb = sys.exc_info()
@@ -354,7 +359,7 @@ async def create_chat_message(
         print(exc_type, fname, exc_tb.tb_lineno)
         raise HTTPException(status_code=status.HTTP_204_NO_CONTENT, detail="error")
 
-
+#define a fast API enpoint
 @app.post("/uploadFile")
 async def uploadtos3(data_file: UploadFile):
     """
@@ -383,7 +388,8 @@ async def uploadtos3(data_file: UploadFile):
             path=f"s3://{S3_BUCKET}/{S3_PATH}{data_file.filename.split('/')[-1]}",
             boto3_session=aws_s3,
         )
-        os.remove(data_file.filename)
+        os.remove(data_file.filename)#remove local file
+        #create dict
         response = {
             "filename": data_file.filename.split("/")[-1],
             "file_path": f"s3://{S3_BUCKET}/{S3_PATH}{data_file.filename.split('/')[-1]}",
